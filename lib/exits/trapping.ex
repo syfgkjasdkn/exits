@@ -26,7 +26,9 @@ defmodule Exits.Trapping do
     {:reply, task, %{state | tasks: Map.put(tasks, ref, task)}}
   end
 
-  # TODO async_stream
+  def handle_call({:stream, fun, enum}, _from, state) do
+    {:reply, Task.async_stream(enum, fun), state}
+  end
 
   @impl true
   def handle_info({ref, _result}, %__MODULE__{tasks: tasks} = state) when is_reference(ref) do

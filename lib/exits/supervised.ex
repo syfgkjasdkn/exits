@@ -14,8 +14,6 @@ defmodule Exits.Supervised do
     GenServer.start_link(__MODULE__, opts)
   end
 
-  # TODO async_stream + async_stream_nolink
-
   @impl true
   def init(_opts) do
     {:ok, %__MODULE__{}}
@@ -26,6 +24,12 @@ defmodule Exits.Supervised do
       when f in [:async, :async_nolink] do
     %Task{ref: ref} = task = apply(Task.Supervisor, f, [@supervisor, fun])
     {:reply, task, %{state | tasks: Map.put(tasks, ref, task)}}
+  end
+
+  def handle_call({f, fun, enum}, _from, state)
+      when f in [:async_stream, :async_stream_nolink] do
+    stream = apply(Task.Supervisor, f, [@supervisor, enum, fun])
+    {:reply, stream, state}
   end
 
   @impl true

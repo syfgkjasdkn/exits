@@ -43,6 +43,41 @@ defmodule ExitsTest do
 
       assert %Exits.Trapping{state: 10} = :sys.get_state(pid)
     end
+
+    test "normal stream", %{pid: pid} do
+      stream = GenServer.call(pid, {:stream, fn i -> i * 2 end, [1, 2, 3, 4]})
+      assert [2, 4, 6, 8] == Enum.map(stream, fn {:ok, i} -> i end)
+
+      assert_receive {:trace, ^pid, :receive, {:"$gen_call", _from, {:stream, _fun, _enum}}}
+
+      refute_receive _anything_else
+
+      assert %Exits.Trapping{state: 10} = :sys.get_state(pid)
+    end
+
+    # TODO finish
+    # test "crash stream", %{pid: pid} do
+    #   stream =
+    #     GenServer.call(
+    #       pid,
+    #       {:stream,
+    #        fn i ->
+    #          if rem(i, 2) == 0 do
+    #            raise("oops")
+    #          else
+    #            i * 2
+    #          end
+    #        end, [1, 2, 3, 4]}
+    #     )
+
+    #   assert [2, 4, 6, 8] == Enum.to_list(stream)
+
+    #   assert_receive {:trace, ^pid, :receive, {:"$gen_call", _from, {:stream, _fun, _enum}}}
+
+    #   refute_receive _anything_else
+
+    #   assert %Exits.Trapping{state: 10} = :sys.get_state(pid)
+    # end
   end
 
   describe "supervised" do
@@ -114,6 +149,88 @@ defmodule ExitsTest do
       refute_receive _anything_else
 
       assert %Exits.Supervised{state: 10} = :sys.get_state(pid)
+    end
+
+    test "normal stream", %{pid: pid} do
+      stream = GenServer.call(pid, {:async_stream, fn i -> i * 2 end, [1, 2, 3, 4]})
+
+      assert [2, 4, 6, 8] == Enum.map(stream, fn {:ok, i} -> i end)
+
+      assert_receive {:trace, ^pid, :receive, {:"$gen_call", _from, {:async_stream, _fun, _enum}}}
+
+      refute_receive _anything_else
+
+      assert %Exits.Supervised{state: 10} = :sys.get_state(pid)
+    end
+
+    test "crash stream", %{pid: pid} do
+      Process.flag(:trap_exit, true)
+
+      stream =
+        GenServer.call(
+          pid,
+          {:async_stream,
+           fn i ->
+             if rem(i, 2) == 0 do
+               raise("oops")
+             else
+               i * 2
+             end
+           end, [1, 2, 3, 4]}
+        )
+
+      assert [
+               {:ok, 2},
+               {:exit, {%RuntimeError{message: "oops"}, _stacktrace1}},
+               {:ok, 6},
+               {:exit, {%RuntimeError{message: "oops"}, _stacktrace2}}
+             ] = Enum.to_list(stream)
+
+      assert_receive {:trace, ^pid, :receive, {:"$gen_call", _from, {:async_stream, _fun, _enum}}}
+
+      refute_receive _anything_else
+
+      Process.flag(:trap_exit, false)
+    end
+
+    test "normal stream nolink", %{pid: pid} do
+      stream = GenServer.call(pid, {:async_stream_nolink, fn i -> i * 2 end, [1, 2, 3, 4]})
+
+      assert [2, 4, 6, 8] == Enum.map(stream, fn {:ok, i} -> i end)
+
+      assert_receive {:trace, ^pid, :receive,
+                      {:"$gen_call", _from, {:async_stream_nolink, _fun, _enum}}}
+
+      refute_receive _anything_else
+
+      assert %Exits.Supervised{state: 10} = :sys.get_state(pid)
+    end
+
+    test "crash stream nolink", %{pid: pid} do
+      stream =
+        GenServer.call(
+          pid,
+          {:async_stream_nolink,
+           fn i ->
+             if rem(i, 2) == 0 do
+               raise("oops")
+             else
+               i * 2
+             end
+           end, [1, 2, 3, 4]}
+        )
+
+      assert [
+               {:ok, 2},
+               {:exit, {%RuntimeError{message: "oops"}, _stacktrace1}},
+               {:ok, 6},
+               {:exit, {%RuntimeError{message: "oops"}, _stacktrace2}}
+             ] = Enum.to_list(stream)
+
+      assert_receive {:trace, ^pid, :receive,
+                      {:"$gen_call", _from, {:async_stream_nolink, _fun, _enum}}}
+
+      refute_receive _anything_else
     end
   end
 end
