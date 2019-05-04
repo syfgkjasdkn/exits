@@ -22,13 +22,15 @@ defmodule Exits.Supervised do
   end
 
   @impl true
-  def handle_info({f, fun}, %__MODULE__{tasks: tasks} = state)
+  def handle_call({f, fun}, _from, %__MODULE__{tasks: tasks} = state)
       when f in [:async, :async_nolink] do
     %Task{ref: ref} = task = apply(Task.Supervisor, f, [@supervisor, fun])
-    {:noreply, %{state | tasks: Map.put(tasks, ref, task)}}
+    {:reply, task, %{state | tasks: Map.put(tasks, ref, task)}}
   end
 
+  @impl true
   def handle_info({ref, _result}, %__MODULE__{tasks: tasks} = state) when is_reference(ref) do
+    # Process.demonitor(ref, [:flush])
     {:noreply, %{state | tasks: Map.delete(tasks, ref)}}
   end
 

@@ -21,13 +21,14 @@ defmodule Exits.Trapping do
   end
 
   @impl true
-  def handle_info({:task, fun}, %__MODULE__{tasks: tasks} = state) do
+  def handle_call({:task, fun}, _from, %__MODULE__{tasks: tasks} = state) do
     %Task{ref: ref} = task = Task.async(fun)
-    {:noreply, %{state | tasks: Map.put(tasks, ref, task)}}
+    {:reply, task, %{state | tasks: Map.put(tasks, ref, task)}}
   end
 
   # TODO async_stream
 
+  @impl true
   def handle_info({ref, _result}, %__MODULE__{tasks: tasks} = state) when is_reference(ref) do
     {:noreply, %{state | tasks: Map.delete(tasks, ref)}}
   end
